@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101614">
+  <meta name="description" content="TopTerm is a native macOS menu-bar terminal. Drop it down, switch tabs, and get back to what you were doing. Your shell, your shortcut, your space.">
+  <title>TopTerm — Your terminal, a shortcut away.</title>
+  <link rel="icon" href="assets/icon.png">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="nav wrap">
+    <a class="wordmark" href="#" aria-label="TopTerm home"><img src="assets/icon.png" width="38" height="38" alt="">TopTerm</a>
+    <nav aria-label="Main navigation"><a href="#details">The little things</a><a href="#build">Build it</a><a class="github" href="https://github.com/ChaosDeSelva/TopTerm">GitHub <span aria-hidden="true">↗</span></a></nav>
+  </header>
+  <main id="main">
+    <section class="hero wrap">
+      <p class="eyebrow"><span></span> A little more room to think · macOS 14+</p>
+      <div class="intro"><h1>Your terminal.<br><em>Within reach.</em></h1><div class="intro-copy"><p>A real terminal, tucked into your menu bar. Bring it down, do your thing, and put it away. Everything keeps running.</p><a class="primary" href="#build">Make room for TopTerm <span aria-hidden="true">↓</span></a><p class="small">Native Swift app. Your usual shell. All local.</p></div></div>
+      <div class="demo" aria-label="Interactive illustration of TopTerm; this is not a live terminal">
+        <div class="desktop-bar"><span class="desktop-app">◈ &nbsp; TopTerm <i>Shell &nbsp; Edit &nbsp; View</i></span><span class="desktop-status">›_ &nbsp;&nbsp; ◉ &nbsp;&nbsp; 9:41</span></div>
+        <div class="desktop-workspace">
+          <div class="background-work"><aside><span class="workspace-label">WORKSPACE</span><span class="selected-note">Today's notes</span><span>Ideas worth keeping</span><span>A little side project</span></aside><article><span class="workspace-label">TODAY'S NOTES</span><h2>One thing at a time.</h2><p>Room for the work in front of you.</p><div class="note-line"></div><div class="note-line short"></div><p class="check-line">✓ &nbsp; Keep the important things close</p><p class="check-line">✓ &nbsp; Leave a little breathing room</p></article></div>
+          <div class="drawer" id="drawer">
+            <div class="drawer-toolbar"><span class="mini-brand">›_ <b>TOPTERM</b></span><div class="demo-tabs" aria-label="Example terminal tabs"><button class="active" data-tab="shell" aria-pressed="true">Shell</button><button data-tab="server" aria-pressed="false">Server</button><button data-tab="logs" aria-pressed="false">Logs</button></div><div class="drawer-actions"><span id="height">50%</span><button id="expand" aria-label="Expand terminal to full height" aria-pressed="false" title="Toggle full height">⤢</button><button id="hide" aria-label="Hide terminal" title="Hide terminal">⌃</button></div></div>
+            <pre id="terminal" aria-live="polite"><span class="prompt">~ ❯</span> printf 'A little more room to think.\n'
+A little more room to think.
+
+<span class="prompt">~ ❯</span> <span class="cursor" aria-hidden="true"></span></pre>
+            <div class="drawer-footer"><span>● zsh &nbsp; · &nbsp; ~</span><span>Your shortcut, your choice</span></div><div class="resize-grip" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
+      <div class="demo-caption"><span><span class="live-dot"></span> A small illustration. Try the tabs, expand, or hide.</span><button id="show" hidden>Show terminal <span aria-hidden="true">↓</span></button></div>
+    </section>
+    <section class="details wrap" id="details" aria-label="Features">
+      <article><span class="number">01 / YOUR SPACE</span><h2>Half the screen.<br> All the width.</h2><p>Start at 50%. Drag the bottom edge to make it yours. Jump to full height, then return to exactly where you left it.</p></article>
+      <article><span class="number">02 / YOUR FLOW</span><h2>A tab for<br> each train of thought.</h2><p>Independent shell sessions for servers, scripts, and everything in between. Hiding the drawer keeps your work running.</p></article>
+      <article><span class="number">03 / YOUR KEYS</span><h2>One shortcut.<br> Make it your own.</h2><p>Record the keys that feel right. Click the shortcut in the drawer to change it. TopTerm remembers your choice.</p></article>
+    </section>
+    <section class="build wrap" id="build">
+      <div><p class="eyebrow">SMALL APP. REAL TERMINAL.</p><h2>Make yourself<br>at home.</h2><p>Use the shell and tools you already know. No account to create. No telemetry to turn off.</p><p class="release-note">Signed downloads are coming. In the meantime, build from source with Swift 6 and the Xcode Command Line Tools.</p><a class="text-link" href="https://github.com/ChaosDeSelva/TopTerm">Explore the source <span aria-hidden="true">↗</span></a></div>
+      <div class="build-code"><div class="code-heading"><span>BUILD LOCALLY</span><button id="copy" type="button">Copy commands</button></div><pre><code id="commands">git clone https://github.com/ChaosDeSelva/TopTerm.git
+cd TopTerm
+zsh scripts/build.sh
+open build/TopTerm.app</code></pre><p id="copy-status" role="status">All dependencies are included. Nothing extra to download during the build.</p></div>
+    </section>
+  </main>
+  <footer class="wrap"><span class="footer-name">›_ &nbsp; TopTerm</span><p>Built in Swift. Terminal powered by <a href="https://github.com/migueldeicaza/SwiftTerm">SwiftTerm</a>.</p><a href="https://github.com/ChaosDeSelva/TopTerm/issues">Ideas &amp; issues ↗</a></footer>
+</body>
+</html>
