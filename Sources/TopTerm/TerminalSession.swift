@@ -7,6 +7,8 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
     let terminal: LocalProcessTerminalView
     let shell: String
     private(set) var title: String
+    private(set) var customTitle: String?
+    var displayTitle: String { customTitle ?? (title.isEmpty ? "Shell" : title) }
     private(set) var directory: String
     private(set) var ended = false
     private(set) var gitStatus: TerminalGitStatus?
@@ -137,6 +139,13 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
 
     func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
         self.title = String(title.filter { !$0.isNewline && !$0.isASCIIControl }.prefix(100))
+        onChange?()
+    }
+
+    func rename(to name: String?) {
+        let cleaned = name.map { String($0.filter { !$0.isNewline && !$0.isASCIIControl }
+            .trimmingCharacters(in: .whitespacesAndNewlines).prefix(100)) }
+        customTitle = cleaned.flatMap { $0.isEmpty ? nil : $0 }
         onChange?()
     }
 

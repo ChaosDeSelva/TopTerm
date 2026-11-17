@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         content.onResize = { [weak self] in self?.resize(bottom: $0) }
         content.onSelect = { [weak self] in self?.selectTab($0) }
         content.onClose = { [weak self] in self?.closeTab($0) }
+        content.onRename = { [weak self] in self?.renameTab($0) }
         content.onShortcut = { [weak self] in self?.changeShortcut() }
         installMenus()
         shortcut.onPress = { [weak self] in self?.togglePanel() }
@@ -146,6 +147,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    private func renameTab(_ index: Int) {
+        guard sessions.indices.contains(index) else { return }
+        let session = sessions[index]
+        selectTab(index)
+        showPanel()
+        let alert = NSAlert()
+        alert.messageText = "Rename tab"
+        alert.informativeText = "Choose a name that stays the same as you work. Leave it blank to use the shell’s automatic title."
+        let field = NSTextField(string: session.displayTitle)
+        field.frame = NSRect(x: 0, y: 0, width: 340, height: 24)
+        field.placeholderString = "Tab name"
+        field.setAccessibilityLabel("Tab name")
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Use Automatic Name")
+        alert.window.initialFirstResponder = field
+        shortcut.isEnabled = false
+        defer {
+            shortcut.isEnabled = true
+            panel.makeFirstResponder(activeSession?.terminal)
+        }
+        field.selectText(nil)
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: session.rename(to: field.stringValue)
+        case .alertThirdButtonReturn: session.rename(to: nil)
+        default: break
+        }
+    }
+
     @objc func toggleExpanded() {
         expanded.toggle()
         if !panel.isVisible { showPanel() } else { applyFrame(); refresh() }
@@ -205,6 +236,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         shell.submenu = NSMenu(title: "Shell")
         shell.submenu?.addItem(item("New Tab", #selector(newTab), key: "t"))
         shell.submenu?.addItem(item("Close Tab", #selector(closeActiveTab), key: "w"))
+        let rename = item("Rename Tab…", #selector(renameActiveTab), key: "r")
+        rename.keyEquivalentModifierMask = [.command, .shift]
+        shell.submenu?.addItem(rename)
         main.addItem(shell)
         let edit = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
         edit.submenu = NSMenu(title: "Edit")
@@ -244,11 +278,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(item("New Tab", #selector(newTab), key: "t"))
         for (index, session) in sessions.enumerated() {
-            let tab = item("\(index + 1). \(session.title)", #selector(menuSelectTab))
+            let tab = item("\(index + 1). \(session.displayTitle)", #selector(menuSelectTab))
             tab.tag = index
             tab.state = index == activeIndex ? .on : .off
             menu.addItem(tab)
         }
+        if activeSession != nil { menu.addItem(item("Rename Tab…", #selector(renameActiveTab))) }
         menu.addItem(.separator())
         menu.addItem(item("Larger Text", #selector(largerText)))
         menu.addItem(item("Smaller Text", #selector(smallerText)))
@@ -285,6 +320,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         guard modifiers.contains(.command), !modifiers.contains(.control), !modifiers.contains(.option) else { return false }
         let key = event.charactersIgnoringModifiers ?? ""
+        if modifiers.contains(.shift), key.lowercased() == "r" { renameActiveTab(); return true }
         switch key {
         case "t": newTab()
         case "w": closeActiveTab()
@@ -309,6 +345,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func menuSetHeight(_ sender: NSMenuItem) { setHeight(Double(sender.tag) / 100) }
     @objc private func menuSelectTab(_ sender: NSMenuItem) { selectTab(sender.tag); showPanel() }
     @objc private func closeActiveTab() { closeTab(activeIndex) }
+    @objc private func renameActiveTab() { renameTab(activeIndex) }
     @objc private func largerText() { changeFontSize(preferences.fontSize + 1) }
     @objc private func smallerText() { changeFontSize(preferences.fontSize - 1) }
     @objc private func quit() { NSApp.terminate(nil) }

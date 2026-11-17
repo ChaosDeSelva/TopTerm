@@ -53,6 +53,7 @@ final class PanelContent: NSView {
     var onResize: ((CGFloat) -> Void)?
     var onSelect: ((Int) -> Void)?
     var onClose: ((Int) -> Void)?
+    var onRename: ((Int) -> Void)?
     var onShortcut: (() -> Void)?
 
     override init(frame: NSRect) {
@@ -141,9 +142,10 @@ final class PanelContent: NSView {
             tabViews.append(view)
         }
         for (index, session) in sessions.enumerated() {
-            tabViews[index].update(title: session.title, selected: index == active, ended: session.ended)
+            tabViews[index].update(title: session.displayTitle, selected: index == active, ended: session.ended)
             tabViews[index].onSelect = { [weak self] in self?.onSelect?(index) }
             tabViews[index].onClose = { [weak self] in self?.onClose?(index) }
+            tabViews[index].onRename = { [weak self] in self?.onRename?(index) }
         }
         let savedHeight = "\(Int((fraction * 100).rounded()))%"
         heightButton.title = expanded ? "100%" : savedHeight
@@ -190,6 +192,7 @@ private final class TabView: NSView {
     private let close = NSButton()
     var onSelect: (() -> Void)?
     var onClose: (() -> Void)?
+    var onRename: (() -> Void)?
     private var selected = false
 
     override init(frame: NSRect) {
@@ -202,6 +205,12 @@ private final class TabView: NSView {
         select.lineBreakMode = .byTruncatingTail
         select.target = self
         select.action = #selector(selectedTab)
+        let contextMenu = NSMenu()
+        let rename = NSMenuItem(title: "Rename Tab…", action: #selector(renameTab), keyEquivalent: "")
+        rename.target = self
+        contextMenu.addItem(rename)
+        menu = contextMenu
+        select.menu = contextMenu
         close.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close tab")
         close.imageScaling = .scaleProportionallyDown
         close.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 10, weight: .regular)
@@ -219,7 +228,7 @@ private final class TabView: NSView {
     func update(title: String, selected: Bool, ended: Bool) {
         self.selected = selected
         select.title = "\(ended ? "○" : "›")  \(title.isEmpty ? "Shell" : title)"
-        select.toolTip = title
+        select.toolTip = "\(title) · Double-click to rename"
         select.contentTintColor = selected ? Palette.foreground : .secondaryLabelColor
         close.contentTintColor = .secondaryLabelColor
         layer?.backgroundColor = (selected ? NSColor.white.withAlphaComponent(0.08) : .clear).cgColor
@@ -239,7 +248,11 @@ private final class TabView: NSView {
         }
     }
 
-    @objc private func selectedTab() { onSelect?() }
+    @objc private func selectedTab() {
+        onSelect?()
+        if NSApp.currentEvent?.clickCount == 2 { onRename?() }
+    }
+    @objc private func renameTab() { onRename?() }
     @objc private func closedTab() { onClose?() }
 }
 
