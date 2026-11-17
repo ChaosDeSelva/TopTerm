@@ -6,7 +6,7 @@ A standalone native macOS menu-bar terminal drawer. Built with AppKit and SwiftT
 
 ## Install
 
-[Download TopTerm 0.1.1 for Apple silicon](https://github.com/ChaosDeSelva/TopTerm/releases/download/v0.1.1/TopTerm-0.1.1-arm64.dmg) (macOS 14 or later). Open the signed, notarized disk image and drag TopTerm into Applications.
+[Download TopTerm 0.1.2 for Apple silicon](https://github.com/ChaosDeSelva/TopTerm/releases/download/v0.1.2/TopTerm-0.1.2-arm64.dmg) (macOS 14 or later). Open the signed, notarized disk image and drag TopTerm into Applications.
 
 ## Use
 
