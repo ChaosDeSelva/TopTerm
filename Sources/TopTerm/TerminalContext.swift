@@ -27,6 +27,8 @@ struct TerminalGitStatus: Equatable {
         environment["GIT_TERMINAL_PROMPT"] = "0"
         process.environment = environment
         let pipe = Pipe()
+        // A shell started in another tab must not inherit the Git pipe writer.
+        guard fcntl(pipe.fileHandleForWriting.fileDescriptor, F_SETFD, FD_CLOEXEC) == 0 else { return nil }
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return nil }
