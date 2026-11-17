@@ -9,6 +9,11 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
     private(set) var title: String
     private(set) var directory: String
     private(set) var ended = false
+    private(set) var gitStatus: TerminalGitStatus?
+    private var contextTimer: Timer?
+    private var gitRefreshRunning = false
+    private var nextGitRefresh = Date.distantPast
+
     var onChange: (() -> Void)?
     var sessionID: pid_t { terminal.process.shellPid }
     var isRunning: Bool { terminal.process.running }
@@ -41,7 +46,7 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"
         env["TERM_PROGRAM"] = "TopTerm"
-        env["TERM_PROGRAM_VERSION"] = "0.1.0"
+        env["TERM_PROGRAM_VERSION"] = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.1"
         env["TERM_SESSION_ID"] = id.uuidString
         env["LANG"] = env["LANG"] ?? "en_US.UTF-8"
         env["SHELL"] = shell
@@ -49,13 +54,46 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
                               environment: env.map { "\($0.key)=\($0.value)" },
                               execName: URL(fileURLWithPath: shell).lastPathComponent,
                               currentDirectory: directory)
+        if isRunning {
+            let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.refreshContext() }
+            contextTimer?.invalidate()
+            contextTimer = timer
+            RunLoop.main.add(timer, forMode: .common)
+            refreshContext()
+        }
         if !isRunning {
             ended = true
             terminal.feed(text: "\r\nCould not start \(shell). Open a new tab to try again.\r\n")
         }
     }
 
+    deinit { contextTimer?.invalidate() }
+
+    func refreshContext() {
+        guard isRunning, !ended else { return }
+        if let current = ShellDirectory.read(pid: sessionID), current != directory {
+            directory = current
+            gitStatus = nil
+            nextGitRefresh = .distantPast
+            onChange?()
+        }
+        guard !gitRefreshRunning, Date() >= nextGitRefresh else { return }
+        gitRefreshRunning = true
+        let requestedDirectory = directory
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let status = TerminalGitStatus.read(at: requestedDirectory)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.gitRefreshRunning = false
+                guard !self.ended, self.directory == requestedDirectory else { return }
+                self.nextGitRefresh = Date().addingTimeInterval(1)
+                if self.gitStatus != status { self.gitStatus = status; self.onChange?() }
+            }
+        }
+    }
+
     func stop() -> pid_t? {
+        contextTimer?.invalidate(); contextTimer = nil
         guard isRunning else { return nil }
         let sid = sessionID
         Self.signalSession(sid, signal: SIGHUP)
@@ -106,10 +144,12 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
         guard let directory, let url = URL(string: directory), url.isFileURL,
               url.host == nil || url.host == "" || url.host == "localhost" || url.host == Host.current().name else { return }
         self.directory = url.path
+        gitStatus = nil; nextGitRefresh = .distantPast
         onChange?()
     }
 
     func processTerminated(source: TerminalView, exitCode: Int32?) {
+        contextTimer?.invalidate(); contextTimer = nil
         ended = true
         terminal.feed(text: "\r\n[Session ended\(exitCode.map { " · exit \($0)" } ?? ""). ⌘T opens a new tab.]\r\n")
         onChange?()

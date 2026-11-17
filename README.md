@@ -17,7 +17,7 @@ To choose different keys, click the shortcut in the drawer’s bottom-right corn
 - Full available display width, starting at 50% of the usable display height.
 - Drag the bottom edge to save a different height, or choose a preset using the percentage button.
 - The expand button at the top right switches between full available height and the saved height. The hide button sits immediately to its right.
-- Tabs run independent sessions of the macOS account’s login shell, with its usual configuration. The first tab starts in the home folder. A new tab inherits the current tab’s last reported directory when the shell emits OSC 7 directory updates.
+- Tabs run independent sessions of the macOS account’s login shell, with its usual configuration. The first tab starts in the home folder. A new tab inherits the current tab’s directory. The footer follows the local shell’s working directory without requiring shell configuration; inside a Git repository it also shows the branch and a `*` for uncommitted or untracked changes. Detached HEAD shows the short commit ID.
 - Hiding the drawer preserves all sessions and running commands. Closing a tab terminates that tab. Closing the final tab hides the drawer; showing it again starts a fresh shell.
 - **Quit & Terminate All Sessions** ends the app’s terminal sessions and their attached jobs. Processes that deliberately detach into their own Unix session are independent of the terminal.
 - The drawer opens on the display containing the pointer and remains visible when another app gets focus.
@@ -57,7 +57,7 @@ swift build --disable-sandbox
 .build/debug/TopTerm --self-test
 ```
 
-The debug-only integration checks use temporary, isolated shell configuration. They cover shortcut persistence and conflicts, PTY I/O, tab isolation, hidden-session execution, resize delivery, alternate-screen restoration, foreground-job detection, and session-scoped termination. Geometry tests cover default sizing, height restoration, multiple-display coordinates, and invalid preferences.
+The debug-only integration checks use temporary, isolated shell configuration. They cover shortcut persistence and conflicts, PTY I/O, live working-directory changes, Git branch and dirty-state refresh, tab isolation, hidden-session execution, resize delivery, alternate-screen restoration, foreground-job detection, and session-scoped termination. Geometry tests cover default sizing, height restoration, multiple-display coordinates, and invalid preferences.
 
 ## Source layout
 

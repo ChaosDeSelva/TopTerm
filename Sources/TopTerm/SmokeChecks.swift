@@ -5,7 +5,7 @@ import Carbon
 
 enum SmokeChecks {
     static func run() -> Int32 {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("topterm-check-\(UUID().uuidString)")
+        let root = FileManager.default.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("topterm-check-\(UUID().uuidString)")
         do { try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true) }
         catch { print("FAIL: \(error)"); return 1 }
         let first = TerminalSession(fontSize: 13, directory: root.path, shell: "/bin/zsh")
@@ -42,6 +42,23 @@ enum SmokeChecks {
             send("printf '%s_%s\\n' TAB TWO\n", to: second)
             try check(wait { text(second).contains("TAB_TWO") }, "second tab output")
             try check(!text(first).contains("TAB_TWO"), "tab output stays isolated")
+            let repo = root.appendingPathComponent("project with spaces")
+            try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+            try git(["init", "-b", "footer-check", repo.path])
+            try "new file".write(to: repo.appendingPathComponent("untracked.txt"), atomically: true, encoding: .utf8)
+            send("cd 'project with spaces'\n", to: first)
+            let directoryUpdated = wait { canonical(first.directory) == canonical(repo.path) }
+            if !directoryUpdated { print("DIRECTORY actual=\(first.directory) expected=\(repo.path) kernel=\(String(describing: ShellDirectory.read(pid: first.sessionID))) output=\(text(first))") }
+            try check(directoryUpdated, "live shell cd updates directory without prompt integration")
+            try check(wait { first.gitStatus == TerminalGitStatus(branch: "footer-check", dirty: true) }, "Git branch and untracked changes appear in the active directory")
+            try check(canonical(second.directory) == canonical(root.path) && second.gitStatus == nil, "directory and Git context remain isolated by tab")
+            try git(["-C", repo.path, "checkout", "-b", "next-branch"])
+            try check(wait { first.gitStatus?.branch == "next-branch" }, "branch changes refresh without changing directory")
+            try FileManager.default.removeItem(at: repo.appendingPathComponent("untracked.txt"))
+            try check(wait { first.gitStatus?.dirty == false }, "dirty marker clears after changes are removed")
+            send("cd ..\n", to: first)
+            try check(wait { canonical(first.directory) == canonical(root.path) && first.gitStatus == nil }, "leaving a repository clears stale Git context")
+            try check(TerminalGitStatus.parse("# branch.oid abcdef0123456789\n# branch.head (detached)\n") == TerminalGitStatus(branch: "detached abcdef0", dirty: false), "detached HEAD shows the commit")
             panel.orderOut(nil)
             send("TOPTERM_TEST=retained; sleep 0.2; printf 'PERSIST_%s\\n' $TOPTERM_TEST\n", to: first)
             try check(wait { text(first).contains("PERSIST_retained") }, "hidden sessions keep working")
@@ -84,6 +101,22 @@ enum SmokeChecks {
             print("FAIL: \(error)")
             return 1
         }
+    }
+
+    private static func git(_ arguments: [String]) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run(); process.waitUntilExit()
+        try check(process.terminationStatus == 0, "temporary Git fixture command")
+    }
+
+    private static func canonical(_ path: String) -> String {
+        guard let resolved = realpath(path, nil) else { return path }
+        defer { free(resolved) }
+        return String(cString: resolved)
     }
 
     private static func send(_ command: String, to session: TerminalSession) {

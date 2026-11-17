@@ -154,7 +154,9 @@ final class PanelContent: NSView {
         if sessions.indices.contains(active) {
             let session = sessions[active]
             let path = (session.directory as NSString).abbreviatingWithTildeInPath
-            footer.stringValue = "\(session.ended ? "○ Ended" : "● " + URL(fileURLWithPath: session.shell).lastPathComponent)   ·   \(path)"
+            let git = session.gitStatus.map { "   ·   \($0.branch)\($0.dirty ? " *" : "")" } ?? ""
+            footer.toolTip = "Current shell directory. A * after the Git branch means uncommitted changes, including untracked files."
+            footer.stringValue = "\(session.ended ? "○ Ended" : "● " + URL(fileURLWithPath: session.shell).lastPathComponent)   ·   \(path)" + git
         }
         shortcutHint.title = shortcutWorks ? "\(shortcutLabel)  show / hide" : "Set a shortcut…"
         hide.toolTip = "Hide terminal (\(shortcutLabel))"
