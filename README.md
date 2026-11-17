@@ -22,7 +22,7 @@ To choose different keys, click the shortcut in the drawer’s bottom-right corn
 - Double-click a tab name, right-click it and choose **Rename Tab…**, or press **Command + Shift + R**. Custom names stay in place when commands update the shell title. Choose **Use Automatic Name** to reset a tab.
 - Drop image files, documents, or folders from Finder into the terminal to insert their quoted paths. Multiple files are supported; dropping does not press Return or submit your prompt. Apps such as Claude Code can then use those paths. Files with control characters in their names are rejected.
 - **Quit & Terminate All Sessions** ends the app’s terminal sessions and their attached jobs. Processes that deliberately detach into their own Unix session are independent of the terminal.
-- The drawer opens on the display containing the pointer and remains visible when another app gets focus.
+- The drawer opens on the display containing the pointer and remains visible when another app gets focus. While shown, it follows switches between macOS Desktops without taking keyboard focus. A hidden drawer stays hidden when you switch Desktops.
 
 | Shortcut | Action |
 | --- | --- |
@@ -60,7 +60,7 @@ swift build --disable-sandbox
 .build/debug/TopTerm --self-test
 ```
 
-The debug-only integration checks use temporary, isolated shell configuration. They cover shortcut persistence and conflicts, PTY I/O, file-drop quoting and bracketed paste, custom tab names and automatic-title restoration, live working-directory changes, Git branch and dirty-state refresh, tab isolation, hidden-session execution, resize delivery, alternate-screen restoration, foreground-job detection, and session-scoped termination. Geometry tests cover default sizing, height restoration, multiple-display coordinates, and invalid preferences.
+The debug-only integration checks use temporary, isolated shell configuration. They cover shortcut persistence and conflicts, Desktop visibility intent and recovery cancellation, PTY I/O, file-drop quoting and bracketed paste, custom tab names and automatic-title restoration, live working-directory changes, Git branch and dirty-state refresh, tab isolation, hidden-session execution, resize delivery, alternate-screen restoration, foreground-job detection, and session-scoped termination. Geometry tests cover default sizing, height restoration, multiple-display coordinates, and invalid preferences.
 
 ## Source layout
 

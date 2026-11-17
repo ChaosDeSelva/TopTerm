@@ -2,6 +2,7 @@
 import AppKit
 import SwiftTerm
 import Carbon
+import TopTermCore
 
 enum SmokeChecks {
     static func run() -> Int32 {
@@ -35,6 +36,7 @@ enum SmokeChecks {
         }
         do {
             try shortcutChecks()
+            try presentationChecks()
             try unrelated.run()
             try check(first.isRunning && second.isRunning && firstID != secondID, "independent PTY shells")
             send("printf '\\033[32m%s_%s\\033[0m\\n' PTY OK\n", to: first)
@@ -124,6 +126,21 @@ enum SmokeChecks {
         process.standardError = FileHandle.nullDevice
         try process.run(); process.waitUntilExit()
         try check(process.terminationStatus == 0, "temporary Git fixture command")
+    }
+
+    private static func presentationChecks() throws {
+        var state = DrawerPresentation()
+        try check(!state.isShown && state.recoveryToken == nil, "hidden drawer ignores Desktop changes")
+        state.show()
+        let initial = state.recoveryToken!
+        try check(state.canRecover(initial), "shown drawer can recover after a Desktop change")
+        state.hide()
+        try check(!state.canRecover(initial) && state.recoveryToken == nil, "hiding cancels a pending Desktop recovery")
+        state.show()
+        let reopened = state.recoveryToken!
+        try check(!state.canRecover(initial) && state.canRecover(reopened), "old Desktop callbacks cannot affect a reopened drawer")
+        state.hide()
+        try check(!state.canRecover(reopened), "a late Desktop callback cannot unhide the drawer")
     }
 
     private static func canonical(_ path: String) -> String {

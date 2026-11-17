@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var display: NSScreen?
     private var stoppingSessions = Set<pid_t>()
     private var quitting = false
+    private var presentation = DrawerPresentation()
+    private var spaceRecovery: DispatchWorkItem?
     var activeSession: TerminalSession? { sessions.indices.contains(activeIndex) ? sessions[activeIndex] : nil }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -34,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         shortcutWorks = shortcut.register(preferences.keyBinding)
         NotificationCenter.default.addObserver(self, selector: #selector(screenChanged),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeSpaceChanged),
+            name: NSWorkspace.activeSpaceDidChangeNotification, object: nil)
         newTab()
     }
 
@@ -47,6 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard !quitting else { return .terminateLater }
         quitting = true
+        presentation.hide()
+        spaceRecovery?.cancel()
         panel.orderOut(nil)
         for session in sessions {
             session.onChange = nil
@@ -65,17 +71,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc func togglePanel() {
-        if panel.isVisible { hidePanel() } else { showPanel() }
+        if presentation.isShown { hidePanel() } else { showPanel() }
     }
 
     func showPanel() {
         if sessions.isEmpty { newTab(); return }
-        if !panel.isVisible {
+        if !presentation.isShown {
             let front = NSWorkspace.shared.frontmostApplication
             if front?.processIdentifier != ProcessInfo.processInfo.processIdentifier { previousApp = front }
             display = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
         }
+        presentation.show()
+        spaceRecovery?.cancel()
         applyFrame()
+        panel.followActiveSpace()
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
         if let terminal = activeSession?.terminal { panel.makeFirstResponder(terminal) }
@@ -83,6 +92,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func hidePanel() {
+        presentation.hide()
+        spaceRecovery?.cancel()
         let restore = panel.isKeyWindow && NSApp.isActive
         panel.orderOut(nil)
         if restore {
@@ -179,7 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc func toggleExpanded() {
         expanded.toggle()
-        if !panel.isVisible { showPanel() } else { applyFrame(); refresh() }
+        if !presentation.isShown { showPanel() } else { applyFrame(); refresh() }
     }
 
     func setHeight(_ fraction: Double) {
@@ -210,7 +221,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func screenChanged() {
         display = panel.screen ?? NSScreen.main
-        if panel.isVisible { applyFrame() }
+        if presentation.isShown { applyFrame() }
+    }
+
+    @objc private func activeSpaceChanged() {
+        spaceRecovery?.cancel()
+        guard let token = presentation.recoveryToken else { return }
+        restoreAfterSpaceChange(token: token)
+        // A swipe can finish ordering windows after the workspace notification arrives.
+        let recovery = DispatchWorkItem { [weak self] in self?.restoreAfterSpaceChange(token: token) }
+        spaceRecovery = recovery
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: recovery)
+    }
+
+    private func restoreAfterSpaceChange(token: UInt64) {
+        guard !quitting, presentation.canRecover(token) else { return }
+        applyFrame()
+        panel.followActiveSpace()
     }
 
     private func installMenus() {
@@ -270,7 +297,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let heading = NSMenuItem(title: "TopTerm", action: nil, keyEquivalent: "")
         heading.isEnabled = false
         menu.addItem(heading)
-        menu.addItem(item(panel.isVisible ? "Hide Terminal" : "Show Terminal", #selector(togglePanel)))
+        menu.addItem(item(presentation.isShown ? "Hide Terminal" : "Show Terminal", #selector(togglePanel)))
         menu.addItem(item(expanded ? "Restore Saved Height" : "Full Height", #selector(toggleExpanded)))
         let height = NSMenuItem(title: "Panel Height", action: nil, keyEquivalent: "")
         height.submenu = heightMenu()

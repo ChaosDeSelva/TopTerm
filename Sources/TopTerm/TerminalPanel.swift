@@ -31,6 +31,15 @@ final class TerminalPanel: NSPanel {
         if keyHandler?(event) == true { return true }
         return super.performKeyEquivalent(with: event)
     }
+
+    func followActiveSpace() {
+        if !isOnActiveSpace {
+            // Reapply membership if the window server left this visible drawer on the old Desktop.
+            collectionBehavior.remove(.canJoinAllSpaces)
+            collectionBehavior.insert(.canJoinAllSpaces)
+        }
+        orderFrontRegardless()
+    }
 }
 
 final class PanelContent: NSView {
