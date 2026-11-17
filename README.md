@@ -4,6 +4,10 @@ A standalone native macOS menu-bar terminal drawer. Built with AppKit and SwiftT
 
 [Website](https://chaosdeselva.github.io/TopTerm/) · [Source](https://github.com/ChaosDeSelva/TopTerm)
 
+## Install
+
+[Download TopTerm 0.1.0 for Apple silicon](https://github.com/ChaosDeSelva/TopTerm/releases/download/v0.1.0/TopTerm-0.1.0-arm64.dmg) (macOS 14 or later). Open the signed, notarized disk image and drag TopTerm into Applications.
+
 ## Use
 
 Open `TopTerm.app`. Click its terminal icon in the menu bar, or press **Control + backtick**, to show or hide the drawer. Right-click the icon for the menu.
@@ -43,7 +47,7 @@ zsh scripts/build.sh
 open build/TopTerm.app
 ```
 
-The build is ad-hoc signed for local use. Distribution to other Macs would need separate signing/notarization decisions. The application runs outside the App Sandbox so local shells have their usual filesystem and tool access.
+The local build uses an ad-hoc signature. The application runs outside the App Sandbox so local shells have their usual filesystem and tool access.
 
 ## Check
 
