@@ -4,7 +4,7 @@ import Darwin
 
 final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
     let id = UUID()
-    let terminal: LocalProcessTerminalView
+    let terminal: FileDropTerminalView
     let shell: String
     private(set) var title: String
     private(set) var customTitle: String?
@@ -31,7 +31,7 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
         let preferred = shell ?? accountShell ?? "/bin/zsh"
         self.shell = FileManager.default.isExecutableFile(atPath: preferred) ? preferred : "/bin/zsh"
         self.title = URL(fileURLWithPath: self.shell).lastPathComponent
-        terminal = LocalProcessTerminalView(frame: CGRect(x: 0, y: 0, width: 1000, height: 260))
+        terminal = FileDropTerminalView(frame: CGRect(x: 0, y: 0, width: 1000, height: 260))
         super.init()
         terminal.processDelegate = self
         terminal.font = .monospacedSystemFont(ofSize: fontSize, weight: .regular)

@@ -54,6 +54,7 @@ enum SmokeChecks {
             first.rename(to: String(repeating: "A", count: 120))
             try check(first.displayTitle.count == 100, "long tab names are bounded")
             first.rename(to: nil)
+            try fileDropChecks(session: first, root: root)
             let repo = root.appendingPathComponent("project with spaces")
             try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
             try git(["init", "-b", "footer-check", repo.path])
@@ -129,6 +130,51 @@ enum SmokeChecks {
         guard let resolved = realpath(path, nil) else { return path }
         defer { free(resolved) }
         return String(cString: resolved)
+    }
+
+    private static func fileDropChecks(session: TerminalSession, root: URL) throws {
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        let names = ["screen shot's image.png", "report $(touch SHOULD_NOT_RUN) `touch ALSO_NOT_RUN`; [1].txt", "café 📷.png"]
+        let files = names.map { root.appendingPathComponent($0) }
+        for file in files { try Data().write(to: file) }
+        pasteboard.writeObjects(files as [NSURL])
+        try check(session.terminal.registeredDraggedTypes.contains(.fileURL), "terminal registers for file drops")
+        guard let payload = FileDropTerminalView.fileDropText(from: pasteboard) else {
+            throw NSError(domain: "TopTerm.Check", code: 1, userInfo: [NSLocalizedDescriptionKey: "file URL pasteboard was rejected"])
+        }
+        let arguments = root.appendingPathComponent("drop-arguments.bin")
+        send("printf '%s\\0' > '\(arguments.path)' ", to: session)
+        try check(session.terminal.acceptFileDrop(from: pasteboard), "multiple file drop is accepted")
+        try check(wait { text(session).contains("screen shot") }, "file drop reaches terminal input")
+        try check(!FileManager.default.fileExists(atPath: arguments.path), "dropping files does not submit the command")
+        send("\n", to: session)
+        let expected = Data(files.map { $0.path + "\0" }.joined().utf8)
+        try check(wait { (try? Data(contentsOf: arguments)) == expected }, "spaces, quotes, Unicode and shell metacharacters round-trip as separate arguments")
+        try check(!FileManager.default.fileExists(atPath: root.appendingPathComponent("SHOULD_NOT_RUN").path) &&
+                  !FileManager.default.fileExists(atPath: root.appendingPathComponent("ALSO_NOT_RUN").path), "filenames cannot execute shell substitutions")
+        for bracketed in [false, true] {
+            let suffix = bracketed ? "ON" : "OFF"
+            let received = root.appendingPathComponent("drop-\(suffix).bin")
+            let expectedText = bracketed ? "\u{1B}[200~" + payload + "\u{1B}[201~" : payload
+            let count = expectedText.utf8.count
+            send("stty -echo -icanon min 1 time 0; printf '\\033[?2004\(bracketed ? "h" : "l")DROP_READY_\(suffix)\\n'; /bin/dd bs=1 count=\(count) of='\(received.path)' 2>/dev/null; stty sane; printf '\\033[?2004l\\nDROP_DONE_\(suffix)\\n'\n", to: session)
+            try check(wait { session.terminal.getTerminal().bracketedPasteMode == bracketed && text(session).split(separator: "\n").contains(where: { $0 == "DROP_READY_\(suffix)" }) }, "raw receiver is ready with bracketed paste \(suffix)")
+            try check(session.terminal.acceptFileDrop(from: pasteboard), "drop accepted with bracketed paste \(suffix)")
+            try check(wait { (try? Data(contentsOf: received)) == Data(expectedText.utf8) && text(session).split(separator: "\n").contains(where: { $0 == "DROP_DONE_\(suffix)" }) }, "exact file-drop bytes with bracketed paste \(suffix)")
+        }
+        pasteboard.clearContents()
+        pasteboard.setString("plain text stays plain", forType: .string)
+        try check(FileDropTerminalView.fileDropText(from: pasteboard) == nil &&
+                  pasteboard.string(forType: .string) == "plain text stays plain", "file-drop handling leaves plain text pasteboards unchanged")
+        pasteboard.clearContents()
+        pasteboard.writeObjects([URL(string: "https://example.com/image.png")! as NSURL])
+        try check(FileDropTerminalView.fileDropText(from: pasteboard) == nil, "remote URLs are not treated as local attachments")
+        for character in ["\n", "\r", "\t", "\u{1B}"] {
+            pasteboard.clearContents()
+            pasteboard.writeObjects([root.appendingPathComponent("control\(character)name.png") as NSURL])
+            try check(FileDropTerminalView.fileDropText(from: pasteboard) == nil, "control characters cannot become terminal input")
+        }
     }
 
     private static func send(_ command: String, to session: TerminalSession) {
