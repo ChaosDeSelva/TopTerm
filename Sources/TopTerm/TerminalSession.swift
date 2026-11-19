@@ -48,7 +48,7 @@ final class TerminalSession: NSObject, LocalProcessTerminalViewDelegate {
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"
         env["TERM_PROGRAM"] = "TopTerm"
-        env["TERM_PROGRAM_VERSION"] = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.2"
+        env["TERM_PROGRAM_VERSION"] = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.3"
         env["TERM_SESSION_ID"] = id.uuidString
         env["LANG"] = env["LANG"] ?? "en_US.UTF-8"
         env["SHELL"] = shell

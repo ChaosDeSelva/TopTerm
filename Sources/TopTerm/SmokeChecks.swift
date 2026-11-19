@@ -57,6 +57,7 @@ enum SmokeChecks {
             try check(first.displayTitle.count == 100, "long tab names are bounded")
             first.rename(to: nil)
             try fileDropChecks(session: first, root: root)
+            try mouseChecks(session: first, root: root)
             let repo = root.appendingPathComponent("project with spaces")
             try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
             try git(["init", "-b", "footer-check", repo.path])
@@ -196,6 +197,128 @@ enum SmokeChecks {
 
     private static func send(_ command: String, to session: TerminalSession) {
         session.terminal.process.send(data: Array(command.utf8)[...])
+    }
+
+    private static func mouseChecks(session: TerminalSession, root: URL) throws {
+        let view = FileDropTerminalView(frame: CGRect(x: 0, y: 0, width: 800, height: 300))
+        let recorder = MouseRecorder()
+        view.terminalDelegate = recorder
+        func configure(_ modes: String) {
+            view.feed(text: "\u{1B}c\u{1B}[?1005l\u{1B}[?1006l\u{1B}[?1015l\u{1B}[?1016l\u{1B}[>0s" + modes)
+            recorder.bytes = []
+        }
+        func expect(_ bytes: [UInt8], _ name: String) throws {
+            if recorder.bytes != bytes { print("MOUSE actual=\(recorder.bytes) expected=\(bytes)") }
+            try check(recorder.bytes == bytes && recorder.openedLinks == 0, name)
+            recorder.bytes = []
+        }
+        for mode in [1000, 1002, 1003] {
+            configure("\u{1B}[?\(mode)h\u{1B}[?1006h")
+            try mouse(.rightMouseDown, in: view)
+            try mouse(.rightMouseDragged, in: view)
+            try mouse(.rightMouseUp, in: view)
+            let drag = mode == 1000 ? "" : "\u{1B}[<34;1;1M"
+            try expect(Array(("\u{1B}[<2;1;1M" + drag + "\u{1B}[<2;1;1m").utf8), "right press, drag, and release use the correct SGR button in mode \(mode)")
+        }
+        configure("\u{1B}[?1002h\u{1B}[?1006h")
+        try mouse(.otherMouseDown, in: view)
+        try mouse(.otherMouseDragged, in: view)
+        try mouse(.otherMouseUp, in: view)
+        try expect(Array("\u{1B}[<1;1;1M\u{1B}[<33;1;1M\u{1B}[<1;1;1m".utf8), "middle button remains distinct from right button")
+        try mouse(.leftMouseDown, in: view)
+        try mouse(.leftMouseDragged, in: view)
+        try mouse(.leftMouseUp, in: view)
+        try expect(Array("\u{1B}[<0;1;1M\u{1B}[<32;1;1M\u{1B}[<0;1;1m".utf8), "left-button reporting remains unchanged")
+        try mouse(.rightMouseDown, in: view, flags: [.control, .option])
+        try mouse(.rightMouseUp, in: view, flags: [.control, .option])
+        try expect(Array("\u{1B}[<26;1;1M\u{1B}[<26;1;1m".utf8), "right-button modifiers survive both press and release")
+        try mouse(.rightMouseDown, in: view, flags: [.shift])
+        try mouse(.rightMouseUp, in: view, flags: [.shift])
+        try expect([], "Shift bypass keeps right clicks out of applications by default")
+        view.feed(text: "\u{1B}[>1s")
+        try mouse(.rightMouseDown, in: view, flags: [.shift])
+        try mouse(.rightMouseUp, in: view, flags: [.shift])
+        try expect(Array("\u{1B}[<6;1;1M\u{1B}[<6;1;1m".utf8), "applications can explicitly capture Shift-right-click")
+        view.allowMouseReporting = false
+        try mouse(.rightMouseDown, in: view)
+        try mouse(.rightMouseUp, in: view)
+        try expect([], "disabled mouse reporting preserves native right-click handling")
+        view.allowMouseReporting = true
+        configure("")
+        try mouse(.rightMouseDown, in: view)
+        try mouse(.rightMouseUp, in: view)
+        try expect([], "ordinary shells do not receive mouse escape sequences")
+        configure("\u{1B}[?1000h")
+        try mouse(.rightMouseDown, in: view)
+        try mouse(.rightMouseUp, in: view)
+        try expect([27, 91, 77, 34, 33, 33, 27, 91, 77, 35, 33, 33], "legacy reporting uses right press and generic release bytes")
+        configure("\u{1B}[?9h")
+        try mouse(.rightMouseDown, in: view)
+        try mouse(.rightMouseDragged, in: view)
+        try mouse(.rightMouseUp, in: view)
+        try expect([27, 91, 77, 34, 33, 33], "X10 secondary-button mode reports only presses")
+        configure("\u{1B}[?1003h\u{1B}[?1016h")
+        try mouse(.rightMouseDown, in: view)
+        try mouse(.rightMouseUp, in: view)
+        try expect(Array("\u{1B}[<2;1;1M\u{1B}[<2;1;1m".utf8), "pixel reporting preserves the released right button")
+        configure("\u{1B}[?1002h\u{1B}[?1006h")
+        view.feed(text: String(repeating: "scrollback\r\n", count: 100))
+        try mouse(.rightMouseDown, in: view)
+        try mouse(.rightMouseUp, in: view)
+        try expect(Array("\u{1B}[<2;1;1M\u{1B}[<2;1;1m".utf8), "mouse rows stay relative to the viewport after scrollback")
+        configure("\u{1B}[?1002h\u{1B}[?1006h\u{1B}]8;;https://example.com/\u{1B}\\Link\u{1B}]8;;\u{1B}\\")
+        try mouse(.rightMouseDown, in: view, flags: [.command])
+        try mouse(.rightMouseUp, in: view, flags: [.command])
+        try expect(Array("\u{1B}[<2;1;1M\u{1B}[<2;1;1m".utf8), "right-clicking a link reaches the app without activating the link")
+
+        let received = root.appendingPathComponent("mouse-input.bin")
+        let expected = Data("\u{1B}[<2;1;1M\u{1B}[<34;1;1M\u{1B}[<2;1;1m".utf8)
+        send("stty -echo -icanon min 1 time 0; printf '\\033[?1002h\\033[?1006hMOUSE_READY\\n'; /bin/dd bs=1 count=\(expected.count) of='\(received.path)' 2>/dev/null; stty sane; printf '\\033[?1002l\\033[?1006l\\nMOUSE_DONE\\n'\n", to: session)
+        try check(wait { session.terminal.getTerminal().mouseMode == .buttonEventTracking && text(session).split(separator: "\n").contains("MOUSE_READY") }, "PTY receiver enables application mouse capture")
+        try mouse(.rightMouseDown, in: session.terminal)
+        try mouse(.rightMouseDragged, in: session.terminal)
+        try mouse(.rightMouseUp, in: session.terminal)
+        try check(wait { (try? Data(contentsOf: received)) == expected && text(session).split(separator: "\n").contains("MOUSE_DONE") }, "right-click gestures reach the running PTY with exact SGR bytes")
+    }
+
+    private static func mouse(_ type: NSEvent.EventType, in view: TerminalView, flags: NSEvent.ModifierFlags = []) throws {
+        let point = view.convert(NSPoint(x: 1, y: view.bounds.height - 1), to: nil)
+        guard let base = NSEvent.mouseEvent(with: type, location: point, modifierFlags: flags, timestamp: 0,
+                                            windowNumber: view.window?.windowNumber ?? 0, context: nil,
+                                            eventNumber: 0, clickCount: 1, pressure: 1), let cgEvent = base.cgEvent else {
+            throw NSError(domain: "TopTerm.Check", code: 3)
+        }
+        let button = [.rightMouseDown, .rightMouseUp, .rightMouseDragged].contains(type) ? 1 :
+            ([.otherMouseDown, .otherMouseUp, .otherMouseDragged].contains(type) ? 2 : 0)
+        // NSEvent's synthetic factory leaves the button number at zero even for right-click types.
+        cgEvent.setIntegerValueField(.mouseEventButtonNumber, value: Int64(button))
+        guard let event = NSEvent(cgEvent: cgEvent), event.buttonNumber == button, event.locationInWindow == point else {
+            throw NSError(domain: "TopTerm.Check", code: 4, userInfo: [NSLocalizedDescriptionKey: "invalid synthetic mouse coordinates or button"])
+        }
+        switch type {
+        case .rightMouseDown: view.rightMouseDown(with: event)
+        case .rightMouseUp: view.rightMouseUp(with: event)
+        case .rightMouseDragged: view.rightMouseDragged(with: event)
+        case .otherMouseDown: view.otherMouseDown(with: event)
+        case .otherMouseUp: view.otherMouseUp(with: event)
+        case .otherMouseDragged: view.otherMouseDragged(with: event)
+        case .leftMouseDown: view.mouseDown(with: event)
+        case .leftMouseUp: view.mouseUp(with: event)
+        case .leftMouseDragged: view.mouseDragged(with: event)
+        default: preconditionFailure("unsupported test mouse event")
+        }
+    }
+
+    private final class MouseRecorder: TerminalViewDelegate {
+        var bytes: [UInt8] = []
+        var openedLinks = 0
+        func send(source: TerminalView, data: ArraySlice<UInt8>) { bytes.append(contentsOf: data) }
+        func requestOpenLink(source: TerminalView, link: String, params: [String: String]) { openedLinks += 1 }
+        func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {}
+        func setTerminalTitle(source: TerminalView, title: String) {}
+        func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
+        func scrolled(source: TerminalView, position: Double) {}
+        func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
     }
 
     private static func shortcutChecks() throws {

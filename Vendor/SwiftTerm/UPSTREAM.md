@@ -15,4 +15,8 @@ Local packaging changes:
 - The app uses the CoreGraphics renderer. The optional Metal shader resource is excluded from the package.
 - Upstream tooling and example apps are omitted from this vendored copy.
 
-The terminal engine implementation is unchanged.
+Local terminal changes:
+
+- The macOS view forwards right/middle presses, drags, and releases when the application enables mouse reporting, respecting Shift bypass and the requested tracking mode.
+- AppKit right/middle button numbers are translated to terminal button numbers.
+- SGR and SGR-pixel releases retain the released button's identity; legacy mouse reports retain their generic release encoding.

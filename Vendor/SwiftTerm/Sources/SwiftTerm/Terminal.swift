@@ -6958,8 +6958,9 @@ open class Terminal {
      * - Parameter buttonFlags: Button flags encoded in Cb mode.
      * - Parameter x: X coordinate for the event
      * - Parameter y: Y coordinate for the event
+     * - Parameter releasedButton: SGR release identity (0 left, 1 middle, 2 right); nil preserves the default left release.
      */
-    public func sendEvent (buttonFlags: Int, x: Int, y: Int, pixelX: Int, pixelY: Int)
+    public func sendEvent (buttonFlags: Int, x: Int, y: Int, pixelX: Int, pixelY: Int, releasedButton: Int? = nil)
     {
         //print ("got \(mouseProtocol)")
         switch mouseProtocol {
@@ -6967,12 +6968,12 @@ open class Terminal {
             sendResponse(cc.CSI, "M", [UInt8(min(buttonFlags+32, 255)), UInt8(min(32 + x+1, 255)), UInt8(min(32+y+1, 255))])
         case .sgr:
             let isRelease = (buttonFlags & 3) == 3 && (buttonFlags & 32) == 0
-            let bflags : Int = isRelease ? (buttonFlags & ~3) : buttonFlags
+            let bflags : Int = isRelease ? (buttonFlags & ~3) | ((releasedButton ?? 0) & 3) : buttonFlags
             let m = isRelease ? "m" : "M"
             sendResponse(cc.CSI, "<\(bflags);\(x+1);\(y+1)\(m)")
         case .sgrPixel:
             let isRelease = (buttonFlags & 3) == 3 && (buttonFlags & 32) == 0
-            let bflags : Int = isRelease ? (buttonFlags & ~3) : buttonFlags
+            let bflags : Int = isRelease ? (buttonFlags & ~3) | ((releasedButton ?? 0) & 3) : buttonFlags
             let m = isRelease ? "m" : "M"
             sendResponse(cc.CSI, "<\(bflags);\(pixelX);\(pixelY)\(m)")
             

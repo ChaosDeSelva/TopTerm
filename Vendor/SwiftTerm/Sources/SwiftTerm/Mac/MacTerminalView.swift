@@ -2755,7 +2755,16 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         let flags = event.modifierFlags
         let isReleaseEvent = overwriteRelease || [NSEvent.EventType.leftMouseUp, .otherMouseUp, .rightMouseUp].contains(event.type)
         
-        return terminal.encodeButton(button: event.buttonNumber, release: isReleaseEvent, shift: flags.contains(.shift), meta: flags.contains(.option), control: flags.contains(.control))
+        return terminal.encodeButton(button: terminalButtonNumber(for: event), release: isReleaseEvent, shift: flags.contains(.shift), meta: flags.contains(.option), control: flags.contains(.control))
+    }
+
+    private func terminalButtonNumber(for event: NSEvent) -> Int {
+        // AppKit numbers right/middle as 1/2; terminal protocols use 2/1.
+        switch event.buttonNumber {
+        case 1: return 2
+        case 2: return 1
+        default: return event.buttonNumber
+        }
     }
     
     func calculateMouseHit (with event: NSEvent) -> (grid: Position, pixels: Position)
@@ -2798,7 +2807,47 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         let hit = calculateMouseHit(with: event)
         let buttonFlags = encodeMouseEvent(with: event)
         let screenRow = max (0, min (displayBuffer.rows - 1, hit.grid.row - displayBuffer.yDisp))
-        terminal.sendEvent(buttonFlags: buttonFlags, x: hit.grid.col, y: screenRow, pixelX: hit.pixels.col, pixelY: hit.pixels.row)
+        let releasedButton = [NSEvent.EventType.leftMouseUp, .rightMouseUp, .otherMouseUp].contains(event.type) ? terminalButtonNumber(for: event) : nil
+        terminal.sendEvent(buttonFlags: buttonFlags, x: hit.grid.col, y: screenRow, pixelX: hit.pixels.col, pixelY: hit.pixels.row, releasedButton: releasedButton)
+    }
+
+    private func reportSecondaryMouse(with event: NSEvent) -> Bool {
+        guard allowMouseReporting, !shiftBypassesMouseReporting(for: event),
+              event.buttonNumber <= 2, terminal.mouseMode != .off else { return false }
+        switch event.type {
+        case .rightMouseDown, .otherMouseDown:
+            sharedMouseEvent(with: event)
+        case .rightMouseUp, .otherMouseUp:
+            if terminal.mouseMode != .x10 { sharedMouseEvent(with: event) }
+        case .rightMouseDragged, .otherMouseDragged:
+            if terminal.mouseMode.sendButtonTracking() { mouseDragged(with: event) }
+        default: return false
+        }
+        return true
+    }
+
+    open override func rightMouseDown(with event: NSEvent) {
+        if !reportSecondaryMouse(with: event) { super.rightMouseDown(with: event) }
+    }
+
+    open override func rightMouseUp(with event: NSEvent) {
+        if !reportSecondaryMouse(with: event) { super.rightMouseUp(with: event) }
+    }
+
+    open override func rightMouseDragged(with event: NSEvent) {
+        if !reportSecondaryMouse(with: event) { super.rightMouseDragged(with: event) }
+    }
+
+    open override func otherMouseDown(with event: NSEvent) {
+        if !reportSecondaryMouse(with: event) { super.otherMouseDown(with: event) }
+    }
+
+    open override func otherMouseUp(with event: NSEvent) {
+        if !reportSecondaryMouse(with: event) { super.otherMouseUp(with: event) }
+    }
+
+    open override func otherMouseDragged(with event: NSEvent) {
+        if !reportSecondaryMouse(with: event) { super.otherMouseDragged(with: event) }
     }
     
     private var autoScrollDelta = 0
